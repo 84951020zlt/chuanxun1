@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>字卡传讯s</title>
+    <style>
+        :root { --theme-color: #8da1b9; --my-bubble: #a3b9d5; --ai-bubble: #ffffff; }
+        .theme-blue { --theme-color: #8da1b9; --my-bubble: #a3b9d5; }
+        .theme-pink { --theme-color: #e2b0b0; --my-bubble: #f2caca; }
+        .theme-green { --theme-color: #a3b899; --my-bubble: #cfe1c3; }
+        .theme-purple { --theme-color: #b5a4bd; --my-bubble: #d6cae0; }
+        .theme-yellow { --theme-color: #dfcfaf; --my-bubble: #f0e2c8; }
+        .theme-red { --theme-color: #c98e8e; --my-bubble: #e8b7b7; }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: -apple-system, sans-serif; overflow: hidden; background: #ededed; }
+        #main-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; background-size: cover; background-position: center; }
+        
+        .header { position: fixed; top: 0; width: 100%; height: 44px; background: rgba(237,237,237,0.9); display: flex; align-items: center; justify-content: center; border-bottom: 1px solid #ddd; z-index: 100; }
+        .page { display: none; height: calc(100% - 60px - env(safe-area-inset-bottom)); overflow-y: auto; padding-top: 44px; }
+        .page.active { display: block; }
+
+        #chat-content { padding: 15px; display: flex; flex-direction: column; gap: 15px; padding-bottom: 160px; }
+        .date-divider { align-self: center; font-size: 11px; color: #b2b2b2; margin: 15px 0; text-align: center; width: 100%; }
+        
+        .msg-row { display: flex; gap: 8px; align-items: flex-start; width: 100%; }
+        .msg-row.me { flex-direction: row-reverse; }
+        .avatar { width: 42px; height: 42px; border-radius: 4px; object-fit: cover; background: #ccc; flex-shrink: 0; }
+        .msg-body { display: flex; flex-direction: column; max-width: 70%; position: relative; }
+        .me .msg-body { align-items: flex-end; }
+        .nickname { font-size: 11px; color: #777; margin-bottom: 3px; }
+
+        .bubble { padding: 9px 12px; font-size: 15px; line-height: 1.4; word-wrap: break-word; background: var(--ai-bubble); position: relative; min-width: 50px; padding-bottom: 18px; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .ai .bubble::before { content: ""; position: absolute; left: -6px; top: 12px; border-top: 6px solid transparent; border-bottom: 6px solid transparent; border-right: 8px solid var(--ai-bubble); }
+        .me .bubble { background: var(--my-bubble); }
+        .me .bubble::before { content: ""; position: absolute; right: -6px; top: 12px; border-top: 6px solid transparent; border-bottom: 6px solid transparent; border-left: 8px solid var(--my-bubble); }
+        
+        .inner-time { position: absolute; right: 8px; bottom: 3px; font-size: 9px; color: rgba(0,0,0,0.25); }
+        .status { font-size: 10px; color: #aaa; align-self: flex-end; margin: 0 4px 2px; transition: color 0.3s; }
+
+        /* 正在输入状态框 - 强化视觉 */
+        #typing-box { position: fixed; bottom: 120px; left: 15px; background: rgba(0,0,0,0.7); color: white; padding: 6px 14px; border-radius: 20px; font-size: 12px; display: none; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.15); animation: fade 0.3s; }
+        @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .input-area { position: fixed; bottom: calc(60px + env(safe-area-inset-bottom)); width: 100%; background: #f7f7f7; display: flex; align-items: center; padding: 10px; gap: 8px; border-top: 1px solid #ddd; z-index: 100; }
+        .input-area input { flex: 1; height: 38px; border-radius: 6px; border: 1px solid #ddd; padding: 0 10px; font-size: 16px; background: #fff; outline: none; }
+        .btn-send { background: var(--theme-color); color: white; border: none; padding: 8px 15px; border-radius: 4px; font-weight: bold; }
+        
+        .nav-bar { position: fixed; bottom: 0; width: 100%; height: 60px; background: #f7f7f7; display: flex; border-top: 1px solid #ddd; padding-bottom: env(safe-area-inset-bottom); z-index: 100; }
+        .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 11px; color: #555; }
+        .nav-item.active { color: var(--theme-color); font-weight: bold; }
+
+        .card { background: white; margin: 10px; padding: 15px; border-radius: 10px; }
+        .setting-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #eee; }
+        #modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center; }
+        .modal-body { background: white; width: 85%; border-radius: 12px; padding: 20px; }
+    </style>
+</head>
+<body class="theme-blue">
+    <div id="main-bg"></div>
+    <div class="header" id="title-text">聊天</div>
+
+    <div id="page-chat" class="page active">
+        <div id="chat-content"></div>
+        <div id="typing-box">正在输入...</div>
+        <div class="input-area">
+            <span style="font-size:24px" onclick="openHeart()">❤️</span>
+            <input type="text" id="msgInput" placeholder="输入消息">
+            <button class="btn-send" onclick="sendMe()">发送</button>
+        </div>
+    </div>
+
+    <div id="page-cards" class="page">
+        <div class="card">
+            <b>批量导入 (每行一条)</b>
+            <textarea id="batchText" rows="5" style="width:100%; margin-top:10px; border:1px solid #ddd; padding:8px;"></textarea>
+            <button class="btn-send" style="width:100%; margin-top:10px;" onclick="doBatch()">确认导入</button>
+        </div>
+        <div id="card-list-box"></div>
+    </div>
+
+    <div id="page-stats" class="page">
+        <div class="card" style="display:flex; text-align:center;">
+            <div style="flex:1">字卡库<br><b id="st-cards">0</b></div>
+            <div style="flex:1">消息数<br><b id="st-msgs">0</b></div>
+        </div>
+        <div class="card"><b>字卡排行</b><div id="st-list"></div></div>
+    </div>
+
+    <div id="page-settings" class="page">
+        <div class="card">
+            <div class="setting-item">我: <input type="text" id="meN" onchange="saveProfile()"> <input type="file" accept="image/*" onchange="upImg('meAv')"></div>
+            <div class="setting-item">对方: <input type="text" id="aiN" onchange="saveProfile()"> <input type="file" accept="image/*" onchange="upImg('aiAv')"></div>
+            <div class="setting-item">背景图: <input type="file" accept="image/*" onchange="upImg('bg')"></div>
+        </div>
+        <div class="card">
+            <b>配色主题</b>
+            <div style="display:flex; justify-content:space-between; margin:15px 0;">
+                <div onclick="setT('theme-blue')" style="background:#8da1b9; width:30px; height:30px; border-radius:50%; border:2px solid #fff;"></div>
+                <div onclick="setT('theme-pink')" style="background:#e2b0b0; width:30px; height:30px; border-radius:50%; border:2px solid #fff;"></div>
+                <div onclick="setT('theme-green')" style="background:#a3b899; width:30px; height:30px; border-radius:50%; border:2px solid #fff;"></div>
+                <div onclick="setT('theme-purple')" style="background:#b5a4bd; width:30px; height:30px; border-radius:50%; border:2px solid #fff;"></div>
+                <div onclick="setT('theme-yellow')" style="background:#dfcfaf; width:30px; height:30px; border-radius:50%; border:2px solid #fff;"></div>
+                <div onclick="setT('theme-red')" style="background:#c98e8e; width:30px; height:30px; border-radius:50%; border:2px solid #fff;"></div>
+            </div>
+        </div>
+        <button style="width:90%; margin:10px 5%; color:red; border:none; background:none;" onclick="clearAll()">清空记录</button>
+    </div>
+
+    <nav class="nav-bar">
+        <div class="nav-item active" onclick="nav('chat')">💬聊天</div>
+        <div class="nav-item" onclick="nav('cards')">📝字卡</div>
+        <div class="nav-item" onclick="nav('stats')">📊统计</div>
+        <div class="nav-item" onclick="nav('settings')">⚙️设置</div>
+    </nav>
+
+    <div id="modal">
+        <div class="modal-body">
+            <h3>连发</h3><textarea id="heartText" rows="6" style="width:100%; margin-bottom:10px;"></textarea>
+            <div style="display:flex; justify-content:space-between;">
+                <button onclick="closeHeart()">取消</button><button class="btn-send" onclick="doHeart()">发送</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let d = JSON.parse(localStorage.getItem('zk_v7') || '{"cards":[],"msgs":[],"theme":"theme-blue","meN":"我","aiN":"对方","meAv":"","aiAv":"","bg":"","counts":{}}');
+        
+        function save() { try { localStorage.setItem('zk_v7', JSON.stringify(d)); } catch(e) { alert('空间不足！'); } }
+
+        function nav(p) {
+            document.querySelectorAll('.page, .nav-item').forEach(el=>el.classList.remove('active'));
+            document.getElementById('page-'+p).classList.add('active');
+            event.currentTarget.classList.add('active');
+            if(p==='cards') renderCards();
+            if(p==='stats') renderStats();
+        }
+
+        function sendMe() {
+            let v = document.getElementById('msgInput').value.trim();
+            if(!v) return;
+            pushMsg('me', v);
+            document.getElementById('msgInput').value = '';
+            // 逻辑修正：先等一小会儿再已读并显示输入中
+            setTimeout(autoReplySequence, 1500);
+        }
+
+        async function autoReplySequence() {
+            if(d.cards.length === 0) return;
+            
+            // 1. 变成已读
+            d.msgs.forEach(m => m.read = true);
+            renderChat();
+            
+            // 2. 显示正在输入
+            const typing = document.getElementById('typing-box');
+            typing.innerText = `${d.aiN} 正在输入...`;
+            typing.style.display = 'block';
+
+            // 3. 随机回复 1-4 条
+            let count = Math.floor(Math.random() * 4) + 1; 
+            for(let i=0; i<count; i++) {
+                // 每条消息打字时间 3-5 秒
+                await new Promise(r => setTimeout(r, Math.random()*2000+3000));
+                let p = d.cards[Math.floor(Math.random()*d.cards.length)];
+                pushMsg('ai', p);
+                d.counts[p] = (d.counts[p]||0)+1; 
+                save();
+            }
+            
+            // 4. 全部回复完，关闭正在输入
+            typing.style.display = 'none';
+        }
+
+        function pushMsg(role, text) {
+            const now = new Date();
+            const dateStr = `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日`;
+            const timeStr = `${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
+            d.msgs.push({role, text, time: timeStr, date: dateStr, read: (role==='ai')});
+            renderChat(); save();
+            scrollToBottom();
+        }
+
+        function scrollToBottom() {
+            const pg = document.getElementById('page-chat');
+            setTimeout(() => { pg.scrollTop = pg.scrollHeight; }, 50);
+        }
+
+        function renderChat() {
+            let box = document.getElementById('chat-content');
+            let html = ''; let lastDate = '';
+            d.msgs.forEach(m => {
+                if (m.date !== lastDate) {
+                    html += `<div class="date-divider">———————— ${m.date} ————————</div>`;
+                    lastDate = m.date;
+                }
+                html += `<div class="msg-row ${m.role}">
+                    <img class="avatar" src="${m.role==='me'?d.meAv:d.aiAv}" onerror="this.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mN8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=='">
+                    <div class="msg-body">
+                        <span class="nickname">${m.role==='me'?d.meN:d.aiN}</span>
+                        <div style="display:flex; align-items:flex-end; gap:5px; ${m.role==='me'?'flex-direction:row-reverse':''}">
+                            <div class="bubble">${m.text}<span class="inner-time">${m.time}</span></div>
+                            ${m.role==='me'?`<span class="status" style="color:${m.read?d.theme==='theme-blue'?'#8da1b9':'#aaa':'#ccc'}">${m.read?'已读':'未读'}</span>`:''}
+                        </div>
+                    </div>
+                </div>`;
+            });
+            box.innerHTML = html;
+        }
+
+        // 批量、统计、图片上传逻辑保持不变（包含压缩）
+        function upImg(type) {
+            let f = event.target.files[0]; if(!f) return;
+            let reader = new FileReader();
+            reader.onload = (e) => {
+                let img = new Image();
+                img.onload = () => {
+                    let canvas = document.createElement('canvas');
+                    let maxSide = type === 'bg' ? 1000 : 200;
+                    let w = img.width, h = img.height;
+                    if (w > h) { if (w > maxSide) { h *= maxSide/w; w = maxSide; } }
+                    else { if (h > maxSide) { w *= maxSide/h; h = maxSide; } }
+                    canvas.width = w; canvas.height = h;
+                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                    let base64 = canvas.toDataURL('image/jpeg', 0.7);
+                    if(type==='meAv') d.meAv = base64;
+                    else if(type==='aiAv') d.aiAv = base64;
+                    else if(type==='bg') { d.bg = base64; document.getElementById('main-bg').style.backgroundImage=`url(${base64})`; }
+                    save(); renderChat();
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(f);
+        }
+
+        function doBatch() {
+            let lines = document.getElementById('batchText').value.split('\n').filter(l=>l.trim());
+            d.cards = [...d.cards, ...lines];
+            document.getElementById('batchText').value = ''; renderCards(); save();
+        }
+        function renderCards() {
+            document.getElementById('card-list-box').innerHTML = d.cards.map((c,i)=>`
+                <div class="card" style="display:flex;justify-content:space-between"><span>${c}</span><span style="color:red" onclick="delC(${i})">删除</span></div>
+            `).reverse().join('');
+        }
+        function delC(i) { d.cards.splice(d.cards.length-1-i, 1); renderCards(); save(); }
+        function renderStats() {
+            document.getElementById('st-cards').innerText = d.cards.length;
+            document.getElementById('st-msgs').innerText = d.msgs.length;
+            let s = Object.entries(d.counts).sort((a,b)=>b[1]-a[1]);
+            document.getElementById('st-list').innerHTML = s.map(([k,v])=>`<div class="setting-item"><span>${k}</span><b>${v}次</b></div>`).join('');
+        }
+        function openHeart() { document.getElementById('modal').style.display='flex'; }
+        function closeHeart() { document.getElementById('modal').style.display='none'; }
+        async function doHeart() {
+            let lines = document.getElementById('heartText').value.split('\n').filter(l=>l.trim());
+            closeHeart();
+            for(let l of lines) { pushMsg('me', l); await new Promise(r=>setTimeout(r,2000)); }
+            setTimeout(autoReplySequence, 1500);
+        }
+        function setT(t) { document.body.className = t; d.theme = t; save(); renderChat(); }
+        function saveProfile() { d.meN = document.getElementById('meN').value; d.aiN = document.getElementById('aiN').value; save(); renderChat(); }
+        function clearAll() { if(confirm('清空吗？')) { d.msgs = []; renderChat(); save(); } }
+        
+        document.body.className = d.theme;
+        if(d.bg) document.getElementById('main-bg').style.backgroundImage=`url(${d.bg})`;
+        renderChat();
+    </script>
+</body>
+</html>
